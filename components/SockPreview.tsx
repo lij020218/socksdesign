@@ -534,7 +534,6 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
                   touchAction: "none",
                   filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.15))",
                   userSelect: "none",
-                  WebkitUserDrag: "none",
                 }}
               />
             )}
@@ -617,7 +616,6 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
                   touchAction: "none",
                   filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.15))",
                   userSelect: "none",
-                  WebkitUserDrag: "none",
                 }}
               />
             )}
