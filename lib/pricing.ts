@@ -75,7 +75,7 @@ export function calculateQuote(sel: SelectionState): Quote | null {
   if (qty >= 100) leadTimeDays = "14~18일";
   if (qty >= 300) leadTimeDays = "18~25일";
 
-  let production = "경기 광주 자사 양말 공장 위탁 생산";
+  let production = "자사 양말 공장 위탁 생산";
   if (b2b && qty >= 100) production = "B2B 전담 라인 생산 (자체 QC)";
   if (sel.gauge === "200") production = "심리스 전용 설비 (200침 라인)";
 

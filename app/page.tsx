@@ -56,7 +56,7 @@ export default function LandingPage() {
       <section className="relative max-w-[1480px] mx-auto px-6 md:px-10 pt-10 md:pt-16 pb-16 md:pb-24 overflow-x-clip">
         <div className="hidden md:flex items-center justify-between text-[11px] tracking-[0.3em] uppercase text-mute-400 font-mono pb-24 fade-up">
           <span>A Studio Record, Vol. 01</span>
-          <span className="text-ink">Gwangju · Atelier</span>
+          <span className="text-ink">Atelier</span>
           <span className="tabular">{time} KST</span>
         </div>
 
@@ -143,7 +143,7 @@ export default function LandingPage() {
             <div className="text-[10px] tracking-[0.32em] uppercase text-crimson-500 font-mono mb-3">
               03 — Atelier
             </div>
-            <p>경기 광주 자사 공장에서 한 켤레씩 — 1 – 500켤레 주문 가능.</p>
+            <p>자사 공장에서 한 켤레씩 — 1 – 500켤레 주문 가능.</p>
           </div>
         </div>
       </section>
@@ -163,7 +163,7 @@ export default function LandingPage() {
               <div className="text-[10px] tracking-[0.3em] uppercase text-crimson-400 font-mono mb-3">
                 Studio
               </div>
-              경기도 광주시 · 자사 양말 공장
+              자사 양말 공장
               <br />
               144 · 168 · 200 침 라인
               <br />

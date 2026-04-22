@@ -11,7 +11,7 @@ const MODEL = "gpt-5.4";
 const IMAGE_MODEL = "gpt-image-2-2026-04-21";
 
 const SYSTEM_PROMPT = `당신은 러블리삭스하우스(Lovelysocks House)의 AI 양말 디자이너입니다.
-경기 광주의 자사 양말 공장에서 실제 생산 가능한 규격 안에서, 고객의 한 줄 설명을 받아
+자사 양말 공장에서 실제 생산 가능한 규격 안에서, 고객의 한 줄 설명을 받아
 구체적인 양말 디자인 스펙을 설계합니다.
 
 ## 핵심 제약
