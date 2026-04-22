@@ -92,7 +92,15 @@ const MASK_BY_LENGTH: Record<string, string> = {
 const DEFAULT_MAIN = "#ffffff";
 const DEFAULT_ACCENT = "#0e0e0e";
 
-export function SockPreview({ sel }: { sel: SelectionState }) {
+export function SockPreview({
+  sel,
+  autoConfirmPattern = false,
+  previewRef,
+}: {
+  sel: SelectionState;
+  autoConfirmPattern?: boolean;
+  previewRef?: React.Ref<HTMLDivElement>;
+}) {
   const length = sel.length ?? "crew";
   const maskUrl = MASK_BY_LENGTH[length];
   const hasMain = !!sel.mainColor;
@@ -108,7 +116,11 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
   // Logo placement bypasses the tiled-pattern flow entirely.
   const isCustomLogo =
     isPattern && patternStyle === "custom" && customMode === "logo" && !!sel.customPattern;
-  const isTiledPattern = isPattern && !isCustomLogo;
+  // Full-fill: single scenic illustration covers the whole sock silhouette,
+  // no tiling, no cuff band (colors are baked into the image itself).
+  const isCustomFill =
+    isPattern && patternStyle === "custom" && customMode === "fill" && !!sel.customPattern;
+  const isTiledPattern = isPattern && !isCustomLogo && !isCustomFill;
 
   // Logo position (% within sock wrapper). The silhouettes are asymmetric —
   // the ankle/leg sits left of the geometric center because the foot extends
@@ -130,7 +142,7 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
   const [patternOffset, setPatternOffset] = useState({ x: 0, y: 0 });
   const [patternRotation, setPatternRotation] = useState(0);
   const [patternScale, setPatternScale] = useState(1);
-  const [patternConfirmed, setPatternConfirmed] = useState(false);
+  const [patternConfirmed, setPatternConfirmed] = useState(autoConfirmPattern);
 
   // Logo drag offset (px) applied as transform on top of the base placement.
   const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 });
@@ -336,8 +348,8 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
     setPatternOffset({ x: 0, y: 0 });
     setPatternRotation(0);
     setPatternScale(1);
-    setPatternConfirmed(false);
-  }, [patternStyle, isPattern]);
+    setPatternConfirmed(autoConfirmPattern);
+  }, [patternStyle, isPattern, autoConfirmPattern]);
 
   function startDrag(e: React.MouseEvent | React.TouchEvent) {
     const pt = "touches" in e ? e.touches[0] : e;
@@ -354,40 +366,15 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
   const cuffPct =
     length === "ankle" ? 0.045 : length === "crew" ? 0.08 : 0.12;
 
-  // Toe cap — a localized region at the FRONT of the foot (right end of the
-  // silhouette). The seam starts on the sole some distance back from the toe
-  // tip and curves up to meet the top of the foot right at the tip.
-  // Measured so the cap sits just over the toes, not spanning the whole foot.
-  const toe =
-    length === "ankle"
-      ? { bx: 25, tx: 100, ty: 35 } // no-show: big front cap
-      : length === "crew"
-        ? { bx: 42, tx: 100, ty: 55 }
-        : { bx: 48, tx: 100, ty: 62 };
-
-  // Build the toe-cap seam as a quarter-ellipse arc from (bx, 100) to
-  // (tx, ty), which reads like a real rounded toe curve. Sampled at 7 points
-  // for a smooth polygon approximation.
-  const { bx, tx, ty } = toe;
-  const rx = tx - bx;
-  const ry = 100 - ty;
-  function arcPt(t: number) {
-    // θ sweeps from π (180°, west of center) to π/2 (90°, north of center).
-    const theta = Math.PI * (1 - t * 0.5);
-    const x = tx + rx * Math.cos(theta);
-    const y = 100 - ry * Math.abs(Math.sin(theta));
-    return { x, y };
-  }
-  const arcPoints = [0.15, 0.3, 0.5, 0.7, 0.85, 1].map((t) => arcPt(t));
-  const arcStr = arcPoints
-    .map((p) => `${p.x.toFixed(1)}% ${p.y.toFixed(1)}%`)
-    .join(", ");
-  const toeClipPath = `polygon(${bx}% 100%, ${arcStr}, 100% 100%)`;
-
   return (
     <div className="w-full">
       <div
-        ref={panelRef}
+        ref={(el) => {
+          panelRef.current = el;
+          if (typeof previewRef === "function") previewRef(el);
+          else if (previewRef)
+            (previewRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        }}
         className="relative w-full aspect-[4/3.5] rounded-2xl overflow-hidden"
         style={{
           backgroundColor:
@@ -429,27 +416,32 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
           />
         )}
 
-        {/* Scatter-style full-panel layer for character / custom patterns —
-            individual instances with per-item rotation & size jitter. */}
+        {/* Scatter-style layer for character / custom patterns — mounted
+            inside a wrapper matching the silhouette's size & shift so item
+            density matches the applied-mode preview exactly. */}
         {isTiledPattern && !patternConfirmed && isScatterStyle(patternStyle) && (
-          <div
-            role="presentation"
-            onMouseDown={startDrag}
-            onTouchStart={startDrag}
-            className="absolute inset-0 select-none"
-            style={{
-              transform: `translate(${patternOffset.x}px, ${patternOffset.y}px) rotate(${patternRotation}deg)`,
-              transformOrigin: "center",
-              cursor: dragging ? "grabbing" : "grab",
-              touchAction: "none",
-            }}
-          >
-            <ScatterLayer
-              style={patternStyle}
-              color={accent}
-              customUrl={sel.customPattern}
-              scale={patternScale}
-            />
+          <div className="absolute inset-0 flex items-center justify-center select-none">
+            <div
+              role="presentation"
+              onMouseDown={startDrag}
+              onTouchStart={startDrag}
+              className="relative"
+              style={{
+                width: length === "ankle" ? "50%" : "62%",
+                height: length === "ankle" ? "62%" : "82%",
+                transform: `translateX(${silhouetteShiftPct}%) translate(${patternOffset.x}px, ${patternOffset.y}px) rotate(${patternRotation}deg)`,
+                transformOrigin: "center",
+                cursor: dragging ? "grabbing" : "grab",
+                touchAction: "none",
+              }}
+            >
+              <ScatterLayer
+                style={patternStyle}
+                color={accent}
+                customUrl={sel.customPattern}
+                scale={patternScale}
+              />
+            </div>
           </div>
         )}
 
@@ -557,24 +549,6 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
               }}
             />
 
-            {/* Bottom / toe cap — accent color at foot tip, inherits sock's natural curve */}
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundColor: accent,
-                opacity: sel.accentColor ? 1 : 0,
-                WebkitMaskImage: `url(${maskUrl})`,
-                maskImage: `url(${maskUrl})`,
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskPosition: "center",
-                maskPosition: "center",
-                clipPath: toeClipPath,
-              }}
-            />
-
             {/* Tourism overlay — horizontal stripes */}
             {isTourism && (
               <div
@@ -672,63 +646,113 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
           </div>
         </div>
 
-        {/* Applied-mode pattern — panel-scale layer with sock-shape mask so
-            tile positions are identical to what was shown while dragging.
-            Rendered AFTER the silhouette so it sits on top of the body; the
-            accent dots blend invisibly into the accent-colored cuff/toe. */}
+        {/* Applied-mode pattern — mounted inside a wrapper that matches the
+            silhouette's size & translateX so the sock-shape mask clips the
+            pattern exactly along the rendered sock outline. */}
         {isTiledPattern && patternConfirmed && (
-          <div
-            className="absolute inset-0 pointer-events-none overflow-hidden"
-            style={{
-              WebkitMaskImage: `url(${maskUrl})`,
-              maskImage: `url(${maskUrl})`,
-              WebkitMaskSize: length === "ankle" ? "auto 62%" : "auto 82%",
-              maskSize: length === "ankle" ? "auto 62%" : "auto 82%",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-            }}
-          >
-            {isScatterStyle(patternStyle) ? (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className="relative"
+              style={{
+                width: length === "ankle" ? "50%" : "62%",
+                height: length === "ankle" ? "62%" : "82%",
+                transform: `translateX(${silhouetteShiftPct}%)`,
+              }}
+            >
+              <div
+                className="absolute inset-0 overflow-hidden"
+                style={{
+                  WebkitMaskImage: `url(${maskUrl})`,
+                  maskImage: `url(${maskUrl})`,
+                  WebkitMaskSize: "contain",
+                  maskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskPosition: "center",
+                  // When a cuff accent is painted, exclude the top cuff band
+                  // from the pattern area so the pattern doesn't bleed over it.
+                  clipPath: sel.accentColor
+                    ? `inset(${cuffPct * 100}% 0 0 0)`
+                    : undefined,
+                }}
+              >
+                {isScatterStyle(patternStyle) ? (
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      transform: `translate(${patternOffset.x}px, ${patternOffset.y}px) rotate(${patternRotation}deg)`,
+                      transformOrigin: "center",
+                    }}
+                  >
+                    <ScatterLayer
+                      style={patternStyle}
+                      color={accent}
+                      customUrl={sel.customPattern}
+                      scale={patternScale}
+                    />
+                  </div>
+                ) : (
+                  <div
+                    className="absolute"
+                    style={{
+                      left: "-50%",
+                      top: "-50%",
+                      width: "200%",
+                      height: "200%",
+                      backgroundImage: buildPatternImage(
+                        patternStyle,
+                        accent,
+                        patternScale,
+                        sel.customPattern,
+                      ),
+                      backgroundSize: patternSize(patternStyle, patternScale),
+                      backgroundRepeat: "repeat",
+                      backgroundPosition: `${Math.round(
+                        patternOffset.x,
+                      )}px ${Math.round(patternOffset.y)}px`,
+                      transform: `rotate(${patternRotation}deg)`,
+                      transformOrigin: "center",
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Full-fill scenic image — single non-repeating illustration that
+            covers the entire sock silhouette edge-to-edge (customMode "fill").
+            Uses the same silhouette-matched wrapper as the applied pattern
+            so the sock-shape mask clips the image along the real outline. */}
+        {isCustomFill && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div
+              className="relative"
+              style={{
+                width: length === "ankle" ? "50%" : "62%",
+                height: length === "ankle" ? "62%" : "82%",
+                transform: `translateX(${silhouetteShiftPct}%)`,
+              }}
+            >
               <div
                 className="absolute inset-0"
                 style={{
-                  transform: `translate(${patternOffset.x}px, ${patternOffset.y}px) rotate(${patternRotation}deg)`,
-                  transformOrigin: "center",
-                }}
-              >
-                <ScatterLayer
-                  style={patternStyle}
-                  color={accent}
-                  customUrl={sel.customPattern}
-                  scale={patternScale}
-                />
-              </div>
-            ) : (
-              <div
-                className="absolute"
-                style={{
-                  left: "-50%",
-                  top: "-50%",
-                  width: "200%",
-                  height: "200%",
-                  backgroundImage: buildPatternImage(
-                    patternStyle,
-                    accent,
-                    patternScale,
-                    sel.customPattern,
-                  ),
-                  backgroundSize: patternSize(patternStyle, patternScale),
-                  backgroundRepeat: "repeat",
-                  backgroundPosition: `${Math.round(
-                    patternOffset.x,
-                  )}px ${Math.round(patternOffset.y)}px`,
-                  transform: `rotate(${patternRotation}deg)`,
-                  transformOrigin: "center",
+                  backgroundImage: `url(${sel.customPattern})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundRepeat: "no-repeat",
+                  WebkitMaskImage: `url(${maskUrl})`,
+                  maskImage: `url(${maskUrl})`,
+                  WebkitMaskSize: "contain",
+                  maskSize: "contain",
+                  WebkitMaskRepeat: "no-repeat",
+                  maskRepeat: "no-repeat",
+                  WebkitMaskPosition: "center",
+                  maskPosition: "center",
                 }}
               />
-            )}
+            </div>
           </div>
         )}
 
@@ -786,23 +810,23 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
 
       {/* Pattern control toolbar — visible only in pattern mode */}
       {isTiledPattern && (
-        <div className="mt-3 flex items-center gap-1 p-1.5 rounded-2xl bg-shell border border-mute-200">
+        <div className="mt-3 flex items-center gap-0.5 p-1 rounded-2xl bg-shell border border-mute-200 max-w-full overflow-hidden">
           {!patternConfirmed ? (
             <>
-              <div className="flex items-center gap-1 px-2.5 py-1.5">
-                <span className="text-[9px] uppercase tracking-[0.25em] font-mono text-mute-400 mr-1.5 hidden sm:inline">
+              <div className="flex items-center gap-0.5 px-1.5 py-1">
+                <span className="text-[9px] uppercase tracking-[0.2em] font-mono text-mute-400 mr-1 hidden md:inline">
                   Rotate
                 </span>
                 <button
                   type="button"
                   onClick={() => setPatternRotation((r) => r - 15)}
-                  className="w-7 h-7 rounded-lg border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[14px] transition-colors"
+                  className="w-6 h-6 rounded-md border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[12px] transition-colors"
                   title="−15°"
                   aria-label="Rotate counter-clockwise"
                 >
                   ↺
                 </button>
-                <span className="tabular text-[12px] text-ink min-w-[36px] text-center font-mono">
+                <span className="tabular text-[11px] text-ink min-w-[30px] text-center font-mono">
                   {(((patternRotation % 360) + 360) % 360)
                     .toString()
                     .padStart(3, "0")}
@@ -811,7 +835,7 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
                 <button
                   type="button"
                   onClick={() => setPatternRotation((r) => r + 15)}
-                  className="w-7 h-7 rounded-lg border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[14px] transition-colors"
+                  className="w-6 h-6 rounded-md border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[12px] transition-colors"
                   title="+15°"
                   aria-label="Rotate clockwise"
                 >
@@ -821,28 +845,28 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
 
               <div className="w-px bg-mute-200 my-1.5" />
 
-              <div className="flex items-center gap-1 px-2.5 py-1.5">
-                <span className="text-[9px] uppercase tracking-[0.25em] font-mono text-mute-400 mr-1.5 hidden sm:inline">
+              <div className="flex items-center gap-0.5 px-1.5 py-1">
+                <span className="text-[9px] uppercase tracking-[0.2em] font-mono text-mute-400 mr-1 hidden md:inline">
                   Scale
                 </span>
                 <button
                   type="button"
                   onClick={() => bumpScale(-SCALE_STEP)}
                   disabled={patternScale <= SCALE_MIN}
-                  className="w-7 h-7 rounded-lg border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[14px] transition-colors disabled:opacity-30 disabled:hover:border-mute-200"
+                  className="w-6 h-6 rounded-md border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[12px] transition-colors disabled:opacity-30 disabled:hover:border-mute-200"
                   title="Smaller"
                   aria-label="Decrease scale"
                 >
                   −
                 </button>
-                <span className="tabular text-[12px] text-ink min-w-[36px] text-center font-mono">
+                <span className="tabular text-[11px] text-ink min-w-[28px] text-center font-mono">
                   {patternScale.toFixed(1)}×
                 </span>
                 <button
                   type="button"
                   onClick={() => bumpScale(SCALE_STEP)}
                   disabled={patternScale >= SCALE_MAX}
-                  className="w-7 h-7 rounded-lg border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[14px] transition-colors disabled:opacity-30 disabled:hover:border-mute-200"
+                  className="w-6 h-6 rounded-md border border-mute-200 hover:border-ink hover:bg-paper flex items-center justify-center text-ink text-[12px] transition-colors disabled:opacity-30 disabled:hover:border-mute-200"
                   title="Larger"
                   aria-label="Increase scale"
                 >
@@ -859,7 +883,7 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
                   setPatternRotation(0);
                   setPatternScale(1);
                 }}
-                className="px-3 text-[12px] text-mute-500 hover:text-ink transition-colors"
+                className="px-2 text-[11px] text-mute-500 hover:text-ink transition-colors"
                 title="Reset position, rotation and scale"
               >
                 Reset
@@ -868,7 +892,7 @@ export function SockPreview({ sel }: { sel: SelectionState }) {
               <button
                 type="button"
                 onClick={() => setPatternConfirmed(true)}
-                className="ml-auto h-9 inline-flex items-center gap-2 px-4 rounded-xl bg-ink text-paper hover:bg-crimson-500 text-[13px] leading-none tracking-wide font-medium transition-colors"
+                className="ml-auto h-7 inline-flex items-center gap-1 px-2.5 rounded-lg bg-ink text-paper hover:bg-crimson-500 text-[11px] leading-none tracking-wide font-medium transition-colors shrink-0"
               >
                 <span>Apply</span>
                 <span className="not-italic leading-none translate-y-[-0.5px]">

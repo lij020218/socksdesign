@@ -30,7 +30,7 @@ export interface SelectionState {
   patternStyle?: PatternStyle;
   customPattern?: string; // data URL of user-uploaded logo/character/pattern
   customPatternName?: string;
-  customMode?: "tile" | "logo"; // tile = repeat as pattern; logo = single placement
+  customMode?: "tile" | "logo" | "fill"; // tile=repeat, logo=single ankle, fill=full-sock scene
   logoScale?: number; // 0.5–2.0, applies to embroidery + custom-logo placement
   text?: string;
   textFont?: "serif" | "sans" | "mono" | "script";
