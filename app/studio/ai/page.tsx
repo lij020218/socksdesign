@@ -63,8 +63,24 @@ export default function AIStudioPage() {
           currentSelection: stripBigFields(selection),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error ?? "AI 호출 실패");
+
+      // Vercel / the Node runtime can return a non-JSON HTML error page
+      // when the function times out, crashes, or the env var is missing.
+      // Read as text first and only then attempt JSON parse so the UI
+      // can show a meaningful message instead of a parser error.
+      const raw = await res.text();
+      let data: { error?: string; message?: string; selection?: Partial<SelectionState> } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        const hint = res.status === 504 || res.status === 408
+          ? "함수 실행 시간이 초과됐어요. Vercel Pro 플랜으로 업그레이드하거나, 이미지 생성이 필요 없는 요청으로 먼저 확인해보세요."
+          : res.status === 500
+            ? "서버 설정을 확인해주세요 — Vercel 프로젝트에 OPENAI_API_KEY 환경변수가 설정되어 있어야 합니다."
+            : "서버 응답이 JSON이 아닙니다.";
+        throw new Error(`${hint} (status ${res.status})`);
+      }
+      if (!res.ok) throw new Error(data?.error ?? `AI 호출 실패 (status ${res.status})`);
 
       const message: string = data.message ?? "";
       const applied: Partial<SelectionState> = data.selection ?? {};

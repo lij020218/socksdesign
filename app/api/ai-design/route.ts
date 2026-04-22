@@ -185,12 +185,24 @@ type SockSpec = {
 type ChatMsg = { role: "user" | "assistant"; content: string };
 
 export async function POST(req: Request) {
+  try {
+    return await handle(req);
+  } catch (err) {
+    // Last-resort guard: any uncaught throw would otherwise bubble up to
+    // the Next.js runtime and produce a non-JSON HTML error page, which
+    // breaks the client's res.json() parser.
+    const msg = err instanceof Error ? err.message : String(err);
+    return json({ error: `서버 오류: ${msg}` }, 500);
+  }
+}
+
+async function handle(req: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     return json(
       {
         error:
-          "OPENAI_API_KEY가 설정되지 않았습니다. .env.local 파일을 확인하세요.",
+          "OPENAI_API_KEY 환경변수가 설정되지 않았습니다. Vercel에 배포한 경우 프로젝트 Settings → Environment Variables 에서 OPENAI_API_KEY 를 추가하고 재배포하세요.",
       },
       500,
     );
