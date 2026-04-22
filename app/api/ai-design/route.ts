@@ -1,5 +1,7 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import type { SelectionState } from "@/lib/types";
+import { readFile } from "fs/promises";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -315,24 +317,46 @@ async function handle(req: Request) {
       mode === "fill"
         ? [
             " ===== HARD COMPOSITION RULES — obey strictly =====",
-            `CANVAS: portrait 2:3 (1024×1536) that wraps on a ${geo.label} sock. The rendered image is clipped to an L-shaped sock silhouette. ANYTHING OUTSIDE THAT L IS INVISIBLE.`,
-            `SOCK GEOMETRY (IMPORTANT): ${geo.regions}`,
-            "SUBJECT PLACEMENT: put the primary subject at the default position above UNLESS the user explicitly specified a different body location. Always make sure the subject lies INSIDE the L-shape — avoid the upper-right and lower-left corners of the canvas, which are masked away.",
-            "SUBJECT SIZE: the primary subject must occupy roughly 22-35% of canvas WIDTH and 15-22% of canvas HEIGHT. Keep it modestly sized — a giant subject that fills the frame will look absurd on the sock.",
+            `REFERENCE: the attached image shows a blank ${geo.label} sock silhouette on a beige background at the EXACT size and position the final design must use. Draw your scene ONTO this sock — completely fill every white pixel of the silhouette and keep all beige areas outside the silhouette empty (beige) or continue the sky/ground of the scene.`,
+            "SUBJECT PLACEMENT: place the primary subject INSIDE the sock silhouette, centered on the ANKLE — roughly the upper one-third of the white sock shape. The subject's center must fall inside the silhouette, never in the surrounding beige margin.",
+            "SUBJECT SIZE: the subject should be roughly 22-35% of canvas width and 15-22% of canvas height. Do NOT fill the whole sock with the character.",
             "SUBJECT COUNT: exactly ONE primary subject. No secondary characters, no duplicate mascots, no floating icons, no small copy of the subject anywhere.",
             "STYLE: flat 2D vector illustration, editorial sticker / flat-design look. Solid fill colors, clean simple linework, minimal shading (one soft flat shadow is fine). **Do NOT use 3D rendering, volumetric lighting, photorealism, Pixar/CGI style, glossy highlights, complex gradients, ray-traced shadows, or depth-of-field blur** — unless the user explicitly requested 3D / photoreal / CGI / rendered style.",
-            "BACKGROUND: full-bleed continuous scene reading top-to-bottom. No frame, no border, no white padding, no text, no captions, no watermark, no logo.",
+            "BACKGROUND: the scene should fully cover the sock silhouette with a continuous top-to-bottom composition. The area outside the sock must stay the same plain beige as the reference so the sock shape is preserved. No text, no captions, no watermark, no logo.",
             "SUBJECT ORIENTATION: faces the viewer, or three-quarter view.",
           ].join(" ")
         : ` Single centered motif on pure white background (#FFFFFF), flat 2D vector illustration — NO 3D, NO photorealism, NO volumetric shading. Solid colors, simple linework, no text, no shadows, high contrast subject. Exactly ONE motif — no secondary characters or decorations.`;
     try {
-      const img = await client.images.generate({
-        model: IMAGE_MODEL,
-        prompt: `${spec.image_prompt}${promptSuffix}`,
-        size,
-        n: 1,
-      });
-      const b64 = img.data?.[0]?.b64_json;
+      let b64: string | undefined;
+      if (mode === "fill") {
+        // Send the per-length sock template so gpt-image-2 places the
+        // design at the correct size and position rather than guessing.
+        const templatePath = path.join(
+          process.cwd(),
+          "public",
+          `template-${spec.length}.png`,
+        );
+        const templateBytes = await readFile(templatePath);
+        const templateFile = await toFile(templateBytes, "template.png", {
+          type: "image/png",
+        });
+        const img = await client.images.edit({
+          model: IMAGE_MODEL,
+          image: templateFile,
+          prompt: `${spec.image_prompt}${promptSuffix}`,
+          size,
+          n: 1,
+        });
+        b64 = img.data?.[0]?.b64_json;
+      } else {
+        const img = await client.images.generate({
+          model: IMAGE_MODEL,
+          prompt: `${spec.image_prompt}${promptSuffix}`,
+          size,
+          n: 1,
+        });
+        b64 = img.data?.[0]?.b64_json;
+      }
       if (b64) customPattern = `data:image/png;base64,${b64}`;
     } catch (err) {
       // Non-fatal: fall through without the image.

@@ -739,11 +739,14 @@ export function SockPreview({
                 className="absolute inset-0"
                 style={{
                   backgroundImage: `url(${sel.customPattern})`,
-                  // Image is portrait 2:3; sock is roughly 1:3. Scale the
-                  // image to fill sock height and center-crop horizontally
-                  // to sock width (rather than `cover` which would crop
-                  // top/bottom and throw away the scene's composition).
-                  backgroundSize: "auto 100%",
+                  // `cover` so the image fills the full wrapper (mask then
+                  // clips it to the sock L-shape — leg AND foot get scene).
+                  // `auto 100%` left the foot extension uncovered because
+                  // the 2:3 image stayed narrower than the wrapper.
+                  // Top/bottom crop from cover is tolerable because the
+                  // image prompt places the subject at Y≈30-45% (inside the
+                  // visible middle band after crop).
+                  backgroundSize: "cover",
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   WebkitMaskImage: `url(${maskUrl})`,

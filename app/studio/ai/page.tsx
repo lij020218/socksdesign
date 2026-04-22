@@ -85,13 +85,21 @@ export default function AIStudioPage() {
       const message: string = data.message ?? "";
       const applied: Partial<SelectionState> = data.selection ?? {};
 
-      // Post-process tile/logo images: strip white bg, auto-crop, downscale.
-      // Fill-mode images are meant to cover the sock edge-to-edge, so we keep
-      // them as-is (the scene's own background IS the sock appearance).
-      if (applied.customPattern && applied.customMode !== "fill") {
+      // Post-process AI imagery:
+      // - tile/logo: strip white bg so the motif tiles cleanly (existing).
+      // - fill: gpt-image-2 frequently returns the scene inside a wide
+      //   white border despite explicit "no border" instructions, which
+      //   makes the sock render as mostly main-color with a tiny
+      //   center-bottom strip of scene. 4-corner flood fill trims those
+      //   borders without touching white parts inside the scene (clouds,
+      //   snow, penguin belly) because those aren't reachable from the
+      //   corners. A bigger max dimension keeps the scene detailed.
+      if (applied.customPattern) {
         try {
+          const max = applied.customMode === "fill" ? 1200 : 512;
           applied.customPattern = await processPatternImage(
             applied.customPattern,
+            max,
           );
         } catch {
           /* keep the raw image if canvas processing fails */
