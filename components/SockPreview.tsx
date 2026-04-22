@@ -739,7 +739,11 @@ export function SockPreview({
                 className="absolute inset-0"
                 style={{
                   backgroundImage: `url(${sel.customPattern})`,
-                  backgroundSize: "cover",
+                  // Image is portrait 2:3; sock is roughly 1:3. Scale the
+                  // image to fill sock height and center-crop horizontally
+                  // to sock width (rather than `cover` which would crop
+                  // top/bottom and throw away the scene's composition).
+                  backgroundSize: "auto 100%",
                   backgroundPosition: "center",
                   backgroundRepeat: "no-repeat",
                   WebkitMaskImage: `url(${maskUrl})`,

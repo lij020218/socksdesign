@@ -255,8 +255,8 @@ export async function POST(req: Request) {
     const size = mode === "fill" ? "1024x1536" : "1024x1024";
     const promptSuffix =
       mode === "fill"
-        ? " Vertical sock-print composition, edge-to-edge full bleed, no white border, no negative space, rich saturated colors."
-        : " Single centered motif on pure white background (#FFFFFF), flat illustration, no text, no shadows, high contrast subject.";
+        ? ` IMPORTANT COMPOSITION RULES: Portrait 2:3 canvas designed to be wrapped on a TALL NARROW SOCK shape (final visible area is roughly 1:3). Place the main subject and key details within the CENTER VERTICAL BAND — the outer 20% on each side will be hidden by the sock silhouette. Exactly ONE primary subject (no secondary figures, no smaller mascots, no corner characters, no floating icons). Full-bleed background that reads top-to-bottom as a continuous scene. No white border, no frame, no captions, no text, no logo, no watermark. Subject faces forward.`
+        : ` Single centered motif on pure white background (#FFFFFF), flat illustration, no text, no shadows, high contrast subject. Exactly ONE motif — do not add secondary characters or decorations.`;
     try {
       const img = await client.images.generate({
         model: IMAGE_MODEL,
