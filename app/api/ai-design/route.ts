@@ -253,10 +253,66 @@ export async function POST(req: Request) {
   if (spec.image_prompt && spec.patternStyle === "custom") {
     const mode = spec.customMode ?? "tile";
     const size = mode === "fill" ? "1024x1536" : "1024x1024";
+    // Per-length sock geometry measured from the actual mask PNGs. The sock
+    // is L-shaped inside the 2:3 canvas; the unused areas are transparent.
+    // Coordinates are percentages within the generated image.
+    const geometry: Record<
+      "ankle" | "crew" | "mid",
+      { label: string; regions: string }
+    > = {
+      ankle: {
+        label: "덧신 (no-show)",
+        regions: [
+          "Visible shape is a short foot silhouette, fairly centered horizontally.",
+          "• Y 0-10% = top opening of the no-show, centerX≈42%.",
+          "• Y 10-30% = arch/instep, centerX≈38%.",
+          "• Y 30-90% = foot body, centerX≈50%.",
+          "• Y 90-100% = toe tip, centerX≈50%.",
+          "Default subject position (= ankle/instep area): X≈45-55%, Y≈30-45%.",
+        ].join(" "),
+      },
+      crew: {
+        label: "단목 (ankle-height crew)",
+        regions: [
+          "Visible shape is an L: vertical leg on the LEFT half, foot bending right in the lower half.",
+          "• Y 0-8% = cuff band (the top stripe), centerX≈34%.",
+          "• Y 8-30% = MASK GAP (INVISIBLE — nothing you paint here will show).",
+          "• Y 30-50% = leg body (ankle zone), centerX≈33%.",
+          "• Y 50-65% = ankle/heel curve, centerX≈40-46%.",
+          "• Y 65-80% = instep / foot top, centerX≈57-65%.",
+          "• Y 80-100% = foot and toe pointing right, centerX≈70-73%.",
+          "Default subject position for '발목' (ankle): X≈28-38%, Y≈32-44%.",
+        ].join(" "),
+      },
+      mid: {
+        label: "중목 (tall crew)",
+        regions: [
+          "Visible shape is an L with a taller leg: cuff on top, long vertical leg on the LEFT, foot bending right in the bottom third.",
+          "• Y 0-8% = cuff band, centerX≈34%.",
+          "• Y 8-30% = MASK GAP (INVISIBLE).",
+          "• Y 30-60% = leg body (ankle to shin), centerX≈33-38%.",
+          "• Y 60-75% = ankle/heel curve, centerX≈40-47%.",
+          "• Y 75-90% = foot top, centerX≈60-67%.",
+          "• Y 90-100% = toe pointing right, centerX≈72%.",
+          "Default subject position for '발목' (ankle): X≈30-40%, Y≈30-42%.",
+        ].join(" "),
+      },
+    };
+    const geo = geometry[spec.length as keyof typeof geometry];
     const promptSuffix =
       mode === "fill"
-        ? ` IMPORTANT COMPOSITION RULES: Portrait 2:3 canvas designed to be wrapped on a TALL NARROW SOCK shape (final visible area is roughly 1:3). Place the main subject and key details within the CENTER VERTICAL BAND — the outer 20% on each side will be hidden by the sock silhouette. Exactly ONE primary subject (no secondary figures, no smaller mascots, no corner characters, no floating icons). Full-bleed background that reads top-to-bottom as a continuous scene. No white border, no frame, no captions, no text, no logo, no watermark. Subject faces forward.`
-        : ` Single centered motif on pure white background (#FFFFFF), flat illustration, no text, no shadows, high contrast subject. Exactly ONE motif — do not add secondary characters or decorations.`;
+        ? [
+            " ===== HARD COMPOSITION RULES — obey strictly =====",
+            `CANVAS: portrait 2:3 (1024×1536) that wraps on a ${geo.label} sock. The rendered image is clipped to an L-shaped sock silhouette. ANYTHING OUTSIDE THAT L IS INVISIBLE.`,
+            `SOCK GEOMETRY (IMPORTANT): ${geo.regions}`,
+            "SUBJECT PLACEMENT: put the primary subject at the default position above UNLESS the user explicitly specified a different body location. Always make sure the subject lies INSIDE the L-shape — avoid the upper-right and lower-left corners of the canvas, which are masked away.",
+            "SUBJECT SIZE: the primary subject must occupy roughly 22-35% of canvas WIDTH and 15-22% of canvas HEIGHT. Keep it modestly sized — a giant subject that fills the frame will look absurd on the sock.",
+            "SUBJECT COUNT: exactly ONE primary subject. No secondary characters, no duplicate mascots, no floating icons, no small copy of the subject anywhere.",
+            "STYLE: flat 2D vector illustration, editorial sticker / flat-design look. Solid fill colors, clean simple linework, minimal shading (one soft flat shadow is fine). **Do NOT use 3D rendering, volumetric lighting, photorealism, Pixar/CGI style, glossy highlights, complex gradients, ray-traced shadows, or depth-of-field blur** — unless the user explicitly requested 3D / photoreal / CGI / rendered style.",
+            "BACKGROUND: full-bleed continuous scene reading top-to-bottom. No frame, no border, no white padding, no text, no captions, no watermark, no logo.",
+            "SUBJECT ORIENTATION: faces the viewer, or three-quarter view.",
+          ].join(" ")
+        : ` Single centered motif on pure white background (#FFFFFF), flat 2D vector illustration — NO 3D, NO photorealism, NO volumetric shading. Solid colors, simple linework, no text, no shadows, high contrast subject. Exactly ONE motif — no secondary characters or decorations.`;
     try {
       const img = await client.images.generate({
         model: IMAGE_MODEL,
